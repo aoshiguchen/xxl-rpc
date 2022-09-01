@@ -15,6 +15,9 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.http.*;
+import io.netty.handler.ssl.SslContext;
+import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.handler.timeout.IdleStateHandler;
 
 import java.net.URI;
@@ -34,6 +37,7 @@ public class NettyHttpConnectClient extends ConnectClient {
     private Serializer serializer;
     private String address;
     private String host;
+    private boolean useSSL;
 
     @Override
     public void init(String address, final Serializer serializer, final XxlRpcInvokerFactory xxlRpcInvokerFactory) throws Exception {
@@ -41,6 +45,9 @@ public class NettyHttpConnectClient extends ConnectClient {
         // address
         if (!address.toLowerCase().startsWith("http")) {
             address = "http://" + address;	// IP:PORT, need parse to url
+        }
+        if (address.startsWith("https")) {
+            useSSL = true;
         }
 
         this.address = address;
@@ -71,6 +78,10 @@ public class NettyHttpConnectClient extends ConnectClient {
                 .handler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     public void initChannel(SocketChannel channel) throws Exception {
+                        if (useSSL) {
+                            SslContext context = SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
+                            channel.pipeline().addLast(context.newHandler(channel.alloc()));
+                        }
                         channel.pipeline()
                                 .addLast(new IdleStateHandler(0,0, Beat.BEAT_INTERVAL, TimeUnit.SECONDS))   // beat N, close if fail
                                 .addLast(new HttpClientCodec())
